@@ -1,3 +1,8 @@
+%%%-------------------------------------------------------------------
+%% @doc supervisor for every specific file that will be checked
+%% @end
+%%%-------------------------------------------------------------------
+
 -module(file_count_sup).
 -behavior(supervisor).
 
