@@ -30,4 +30,4 @@ init([]) ->
 				    shutdown => 5000}],
     {ok, {SupFlags, ChildSpecs}}.
 
-%% internal functions
+%% end of row_counter_sup.erl

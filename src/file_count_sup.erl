@@ -18,11 +18,11 @@ start_link() ->
 
 init([]) ->
     SupFlags = #{strategy => simple_one_for_one},
-    ChildSpecs = [#{id      => file_count_checker, 
-				 start    => {file_count_server, start_link, []},
-				 restart  => transient,
-				 type     => worker,
-				 shutdown => 5000}],
+    ChildSpecs = [#{id       => file_count_checker, 
+				    start    => {file_count_server, start_link, []},
+				    restart  => transient,
+				    type     => worker,
+				    shutdown => 5000}],
     {ok, {SupFlags, ChildSpecs}}.
 
-%% internal functions
+%% end of file_count_sup.erl

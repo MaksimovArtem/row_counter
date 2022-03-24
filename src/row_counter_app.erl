@@ -14,4 +14,4 @@ start(_StartType, _StartArgs) ->
 stop(_State) ->
     ok.
 
-%% internal functions
+%% end of row_counter_app

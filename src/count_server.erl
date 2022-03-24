@@ -7,15 +7,13 @@
 -behavior(gen_server).
 
 -export([start_link/0]).
--export([count_rows/1]).
-
--export([get_erl_files_list/1]).
+-export([count_rows/1, get_progress_report/0]).
 
 %%gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2]).
 
 -record(state, {files_status = #{} :: map(),
-				common_state = idle :: idle|running|err_access|err_no_entry|success}).
+				common_state = idle :: idle|running|err_access|err_no_entry}).
 
 -define(SERVER, ?MODULE).
 -define(SUPERVISOR, file_count_sup).
@@ -30,6 +28,10 @@ start_link() ->
 	gen_server:start_link({local,?SERVER}, ?MODULE, [], []).
 
 
+get_progress_report() ->
+	gen_server:call(?SERVER, get_progress_report).
+
+
 count_rows(FolderPath) ->
 	gen_server:cast(?SERVER, {count_rows, FolderPath}).
 
@@ -41,26 +43,30 @@ init([]) ->
 	{ok, #state{common_state = idle}}.
 %%--------------------------------------------------------------
 
+handle_call(get_progress_report, _From, State = #state{common_state = Status,
+													   files_status = RootErrorMap}) when
+		Status == err_access; Status == err_no_entry ->
+		[RootFolder] = maps:keys(RootErrorMap),
+	{reply, [{RootFolder,maps:get(RootFolder, RootErrorMap)}], State};
+handle_call(get_progress_report, _From, State = #state{files_status = Status}) ->
+	Data = get_current_progress(Status),
+	{reply, Data, State}.
 
-handle_call(_Req, _From, State) ->
-	{reply, ok, State}.
 
-
-handle_cast({count_rows, FolderPath}, State) -> %= #state{common_state = idle}) ->
+handle_cast({count_rows, FolderPath}, State) ->
 	NewState =
 	case get_erl_files_list(FolderPath) of
-		{error, DirError} -> State#state{common_state = calculate_state(DirError)};
+		{[], RootError = [{FolderPath, DirError}]} ->
+			ErrorStatusMap = maps:from_list(RootError), 
+			State#state{common_state = calculate_state(DirError),
+						files_status = ErrorStatusMap};
 		{FilesToCheck, Errors} ->
 			ErrorStatusMap = maps:from_list(Errors),
-			run_check(FilesToCheck),
-			io:format("FilesToCheck ~p~n",[FilesToCheck]),
-			State#state{files_status = ErrorStatusMap,
+			OngoingMap = run_check(FilesToCheck),
+			State#state{files_status = maps:merge(ErrorStatusMap, OngoingMap),
 						common_state = running}
 	end,
-	io:format("State ~p~n",[NewState]),
-	{noreply, NewState}.%;
-%handle_cast({count_rows, _}, State = #state{common_state = ComState}) when ComState =/= idle ->
-%	{noreply, State}.
+	{noreply, NewState}.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%                     Internal functions
@@ -100,7 +106,7 @@ do_get_erl_files_list(FolderPath) ->
 				end
 			end,
 			lists:foldl(GroupFiles, {[],[],[]}, FullFileNames);
-		{error, Error} -> {[],[],{FolderPath, Error}}
+		{error, Error} -> {[],[],[{FolderPath, Error}]}
 	end.
 %%--------------------------------------------------------------
 
@@ -145,5 +151,32 @@ calculate_state(enoent) -> err_no_entry.
 %%--------------------------------------------------------------
 
 
-run_check(_FilesToCheck) ->
-	ok.
+run_check(FilesToCheck) ->
+	run_check(FilesToCheck, []).
+
+run_check([], FileServerNames) ->
+	maps:from_list(FileServerNames);
+run_check([File|OtherFilesToCheck], FileServerNames) ->
+	ServerName = list_to_atom("file_" ++ File ++ "_count_server"),
+	supervisor:terminate_child(file_count_sup, whereis(ServerName)),
+	supervisor:start_child(file_count_sup,[File, ServerName]),
+	run_check(OtherFilesToCheck, [{File, ServerName}|FileServerNames]).
+%%--------------------------------------------------------------
+
+
+get_current_progress(StatusMap) when is_map(StatusMap)->
+	Iterator = maps:iterator(StatusMap),
+	get_current_progress(maps:next(Iterator),[]).
+
+
+get_current_progress(none, Acc) ->
+	Acc;
+get_current_progress({FileName, Error, Iterator},Acc) when Error == eacces;
+														   Error == enoent;
+														   Error == {no_translation, FileName} ->
+	get_current_progress(maps:next(Iterator), [{FileName, Error}|Acc]);
+get_current_progress({FileName, ServerName, Iterator}, Acc) when is_atom(ServerName) ->
+	Data = file_count_server:get_progress(ServerName),
+	get_current_progress(maps:next(Iterator), [{FileName, Data}|Acc]).
+
+%% end of count_server.erl
