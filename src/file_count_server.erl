@@ -20,6 +20,8 @@
 				status = idle :: idle|running|success|internal_error}).
 
 -define(TIMEOUT, 50).
+-define(INCORRECT_LINE_REGEXP, "^[\s]*(%)+.*$").
+-define(CORRECT_LINE_REGEXP, "^.*(%)+.*$").
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%                             API
@@ -67,8 +69,10 @@ handle_info(timeout, State = #state{file_descriptor = FD,
 									count_of_code_lines = OldCount}) ->
 	case file:read_line(FD) of
 		{ok, NewLine} ->
+			{ok, PatternIncorrect} = re:compile(?INCORRECT_LINE_REGEXP),
+			{ok, PatternCorrect} = re:compile(?CORRECT_LINE_REGEXP),
 			NewCount =
-			case is_code_row(NewLine) of
+			case is_code_row(NewLine, PatternIncorrect, PatternCorrect) of
 				true  -> OldCount + 1;
 				false -> OldCount
 			end,
@@ -83,7 +87,8 @@ handle_info(timeout, State = #state{file_descriptor = FD,
 %%                     Internal functions
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-is_code_row(_Line) -> true.
+is_code_row(Line, PatternIncorrect, PatternCorrect) ->
+	re:run(Line, PatternIncorrect) == nomatch andalso re:run(Line, PatternCorrect) =/= nomatch.
 %%--------------------------------------------------------------
 
 
@@ -98,5 +103,6 @@ update_state(State, LastChecked, NewCount) ->
 	{noreply, State#state{last_row_number = LastChecked,
 						  count_of_code_lines = NewCount,
 						  status = running}, ?TIMEOUT}.
-
+%%--------------------------------------------------------------
+	
 %%end of file_count_server.erl
