@@ -33,6 +33,8 @@ get_progress_report() ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%                    Internal functions
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+pretty_print(not_running) ->
+	io:format("Count procedure was not started. Nothing to report.~n");
 pretty_print([]) ->
 	io:format("--------------------------------------------------------------~n");
 pretty_print([{FileName, Error}|T]) when Error == eacces;

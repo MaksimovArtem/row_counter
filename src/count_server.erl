@@ -13,7 +13,7 @@
 -export([init/1, handle_call/3, handle_cast/2]).
 
 -record(state, {files_status = #{} :: map(),
-				common_state = idle :: idle|running|err_access|err_no_entry}).
+				common_status = idle :: idle|running|err_access|err_no_entry}).
 
 -define(SERVER, ?MODULE).
 -define(SUPERVISOR, file_count_sup).
@@ -40,17 +40,28 @@ count_rows(FolderPath) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 init([]) ->
-	{ok, #state{common_state = idle}}.
+	{ok, #state{common_status = idle}}.
 %%--------------------------------------------------------------
 
-handle_call(get_progress_report, _From, State = #state{common_state = Status,
+handle_call(get_progress_report, _From, State = #state{common_status = idle}) ->
+	{reply, not_running, State};
+handle_call(get_progress_report, _From, State = #state{common_status = Status,
 													   files_status = RootErrorMap}) when
 		Status == err_access; Status == err_no_entry ->
 		[RootFolder] = maps:keys(RootErrorMap),
-	{reply, [{RootFolder,maps:get(RootFolder, RootErrorMap)}], State};
+	{reply, [{RootFolder,maps:get(RootFolder, RootErrorMap)}], State#state{common_status = idle}};
 handle_call(get_progress_report, _From, State = #state{files_status = Status}) ->
-	Data = get_current_progress(Status),
-	{reply, Data, State}.
+	Progress = get_current_progress(Status),
+	IsStillRunning =
+	fun({_File, {running, _, _, _}}) -> true;
+		(_Other) -> false
+	end,
+	NewState =
+	case lists:any(IsStillRunning, Progress) of
+		true  -> State#state{common_status = running};
+		false -> State#state{common_status = idle}
+	end,
+	{reply, Progress, NewState}.
 
 
 handle_cast({count_rows, FolderPath}, State) ->
@@ -58,13 +69,13 @@ handle_cast({count_rows, FolderPath}, State) ->
 	case get_erl_files_list(FolderPath) of
 		{[], RootError = [{FolderPath, DirError}]} ->
 			ErrorStatusMap = maps:from_list(RootError), 
-			State#state{common_state = calculate_state(DirError),
+			State#state{common_status = calculate_status(DirError),
 						files_status = ErrorStatusMap};
 		{FilesToCheck, Errors} ->
 			ErrorStatusMap = maps:from_list(Errors),
 			OngoingMap = run_check(FilesToCheck),
 			State#state{files_status = maps:merge(ErrorStatusMap, OngoingMap),
-						common_state = running}
+						common_status = running}
 	end,
 	{noreply, NewState}.
 
@@ -146,8 +157,8 @@ get_file_extension(FileName) ->
 %%--------------------------------------------------------------
 
 
-calculate_state(eacces) -> err_access;
-calculate_state(enoent) -> err_no_entry.
+calculate_status(eacces) -> err_access;
+calculate_status(enoent) -> err_no_entry.
 %%--------------------------------------------------------------
 
 
