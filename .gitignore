@@ -19,5 +19,5 @@ rebar3.crashdump
 *~
 rebar.lock
 commands
-test/data/
+test
 data_generator.sh

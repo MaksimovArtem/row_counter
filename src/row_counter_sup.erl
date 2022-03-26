@@ -19,15 +19,14 @@ start_link() ->
 init([]) ->
     SupFlags = #{strategy => one_for_one},
     ChildSpecs = [#{id       => count_server,
-				    start    => {count_server, start_link, []},
-				    restart  => transient,
-				    shutdown => 5000},
-
-    			  #{id       => file_count_sup,
-				   	start    => {file_count_sup, start_link, []},
-				    restart  => transient,
-				    type     => supervisor,
-				    shutdown => 5000}],
+                    start    => {count_server, start_link, []},
+                    restart  => transient,
+                    shutdown => 5000},
+                  #{id       => file_count_sup,
+                    start    => {file_count_sup, start_link, []},
+                    restart  => transient,
+                    type     => supervisor,
+                    shutdown => 5000}],
     {ok, {SupFlags, ChildSpecs}}.
 
 %% end of row_counter_sup.erl
