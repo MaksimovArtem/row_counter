@@ -54,8 +54,8 @@ get_progress(ServerName) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 init([Name]) ->
-	%% File is opened during server start. File Descriptor is shared in state
-	%% It will be closed when eof will be reached
+    %% File is opened during server start. File Descriptor is shared in state
+    %% It will be closed when eof will be reached
     {ok, FD} = file:open(Name, [read]),
     %% count_row procedure will be start right after(Timeout=0) init func
     %% This is done since server should be available to get request for
