@@ -12,7 +12,20 @@ Creates simple process structure
 
 where file_FileNameX_count_server is the gen_server that counts rows in a single .erl file
 
-.erl files are taken from UNIX catalog path that sent as input
+.erl files are taken from UNIX catalog path that sent as input. All .erl files from subdirectories also will be checked
+
+Code was checked on the next folder structure:
+
+     
+     InputFolder ---- SubDir1 ---- ErlFile1
+                  |            |-- ErlFile2
+                  |            ...
+                  |
+                  |-- SubDir2 ---- ErlFile1
+                  |            |-- ErlFile2
+                  |            ...
+                  ...
+
 
 Build
 -----

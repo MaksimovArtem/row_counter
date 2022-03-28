@@ -1,7 +1,7 @@
-%%%-------------------------------------------------------------------
+%%%-------------------------------------------------------------
 %% @doc interface module for app
 %% @end
-%%%-------------------------------------------------------------------
+%%%-------------------------------------------------------------
 
 -module(interface).
 
@@ -12,8 +12,17 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%                             API
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%-------------------------------------------------------------
+%% @doc Interface fucntion that can be used to start count_row
+%% procedure in some UNIX directory sent as input string
+%% @end
+%%%-------------------------------------------------------------
 -spec count_rows(string()) -> ok.
 count_rows(CatalogPath) when is_list(CatalogPath) ->
+    %% It was decided to add some validation in interface module
+    %% by analogy with some type validation in WEB GUI or in UNIX
+    %% scripts
     {ok, Pattern} = re:compile(?CATALOG_REGEXP),
     case re:run(CatalogPath, Pattern) of
         {match,_} -> count_server:count_rows(CatalogPath);
@@ -22,9 +31,14 @@ count_rows(CatalogPath) when is_list(CatalogPath) ->
 
 count_rows(_) ->
     io:format("Incorrect Input Data. Please use correct *NIX path: ~p~n",[?CATALOG_REGEXP]).    
-%%--------------------------------------------------------------
+%%%-------------------------------------------------------------
 
 
+%%%-------------------------------------------------------------
+%% @doc Interface function that can be used to collect progress
+%% report for currrent count_row procedure
+%% @end
+%%%-------------------------------------------------------------
 -spec get_progress_report() -> string().
 get_progress_report() ->
     ProgressReport = count_server:get_progress_report(),

@@ -1,7 +1,7 @@
-%%%-------------------------------------------------------------------
+%%%-------------------------------------------------------------
 %% @doc row_counter start gen_server.
 %% @end
-%%%-------------------------------------------------------------------
+%%%-------------------------------------------------------------
 
 -module(count_server).
 -behavior(gen_server).
@@ -13,6 +13,8 @@
 -export([init/1, handle_call/3, handle_cast/2]).
 
 -record(state, {files_status = #{} :: map(),
+                %% commons status shows the current status of server
+                %% Progress report will be generated based on this status
                 common_status = idle :: idle|running|err_access|err_no_entry}).
 
 -define(SERVER, ?MODULE).
@@ -24,14 +26,28 @@
 %%                             API
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+%%%-------------------------------------------------------------
+%% @doc This function starts main server for row_counter app
+%% This is called from applcation main supervisor 
+%% @end
+%%%-------------------------------------------------------------
 start_link() ->
     gen_server:start_link({local,?SERVER}, ?MODULE, [], []).
 
 
+%%%-------------------------------------------------------------
+%% @doc This function can be called to request current progress
+%% for count_row procedure
+%% @end
+%%%-------------------------------------------------------------
 get_progress_report() ->
     gen_server:call(?SERVER, get_progress_report).
 
 
+%%%-------------------------------------------------------------
+%% @doc This function can be called to start count_row procedure
+%% @end
+%%%-------------------------------------------------------------
 count_rows(FolderPath) ->
     gen_server:cast(?SERVER, {count_rows, FolderPath}).
 
@@ -41,7 +57,7 @@ count_rows(FolderPath) ->
 
 init([]) ->
     {ok, #state{common_status = idle}}.
-%%--------------------------------------------------------------
+%%%-------------------------------------------------------------
 
 handle_call(get_progress_report, _From, State = #state{common_status = idle}) ->
     {reply, not_running, State};
@@ -62,12 +78,13 @@ handle_call(get_progress_report, _From, State = #state{files_status = Status}) -
         false -> State#state{common_status = idle}
     end,
     {reply, Progress, NewState}.
-%%--------------------------------------------------------------
+%%%-------------------------------------------------------------
 
 
 handle_cast({count_rows, FolderPath}, State) ->
     NewState =
     case get_erl_files_list(FolderPath) of
+        %% Clause for case when some issue with input directory occured
         {[], RootError = [{FolderPath, DirError}]} ->
             ErrorStatusMap = maps:from_list(RootError), 
             State#state{common_status = calculate_status(DirError),
@@ -94,9 +111,11 @@ get_erl_files_list([], Acc) ->
     Acc;
 get_erl_files_list([RootFolderPath|SubDirs], {Files, Errors}) ->
     case do_get_erl_files_list(RootFolderPath) of
+        %% Clause for case when no subdirs exist in current directory
         {[], RootFiles, RootErrors} ->
             get_erl_files_list(SubDirs, {lists:append(RootFiles,Files),
                                          lists:append(RootErrors, Errors)});
+        %% Clause for case when there are some subdirs that need to be checked recursively
         {RootSubDirs, RootFiles, RootErrors} ->
             get_erl_files_list(lists:append(RootSubDirs, SubDirs),
                                {lists:append(RootFiles,Files),
@@ -104,6 +123,8 @@ get_erl_files_list([RootFolderPath|SubDirs], {Files, Errors}) ->
     end.
 
 
+%% Extract all 'files' from current directory and split when between directories, .erl files and
+%% .erl files with some errors(enoaces/enoent)
 do_get_erl_files_list(FolderPath) ->
     case file:list_dir(FolderPath) of
         {ok, FileNames} ->
@@ -120,7 +141,7 @@ do_get_erl_files_list(FolderPath) ->
             lists:foldl(GroupFiles, {[],[],[]}, FullFileNames);
         {error, Error} -> {[],[],[{FolderPath, Error}]}
     end.
-%%--------------------------------------------------------------
+%%%-------------------------------------------------------------
 
 
 get_file_type(File) ->
@@ -132,7 +153,7 @@ get_file_type(File) ->
             end;
         Error -> Error
     end.
-%%--------------------------------------------------------------
+%%%-------------------------------------------------------------
 
 
 get_full_paths(FolderPath, FileNames) ->
@@ -147,7 +168,7 @@ get_full_paths(_FolderPath, [], Acc) ->
      Acc;
 get_full_paths(FolderPath, [Name|T], Acc) ->
     get_full_paths(FolderPath, T, [FolderPath ++ Name|Acc]).
-%%--------------------------------------------------------------
+%%%-------------------------------------------------------------
 
 
 get_file_extension(FileName) ->
@@ -155,12 +176,12 @@ get_file_extension(FileName) ->
         ?ERL_EXTENTION -> erl;
         nomatch -> no_erl
     end.
-%%--------------------------------------------------------------
+%%%-------------------------------------------------------------
 
 
 calculate_status(eacces) -> err_access;
 calculate_status(enoent) -> err_no_entry.
-%%--------------------------------------------------------------
+%%%-------------------------------------------------------------
 
 
 run_check(FilesToCheck) ->
@@ -170,10 +191,12 @@ run_check([], FileServerNames) ->
     maps:from_list(FileServerNames);
 run_check([File|OtherFilesToCheck], FileServerNames) ->
     ServerName = list_to_atom("file_" ++ File ++ "_count_server"),
+    %% count_row procedure will be started at server start. So, to restart procedure
+    %% server need to be restarted
     supervisor:terminate_child(file_count_sup, whereis(ServerName)),
     supervisor:start_child(file_count_sup,[File, ServerName]),
     run_check(OtherFilesToCheck, [{File, ServerName}|FileServerNames]).
-%%--------------------------------------------------------------
+%%%-------------------------------------------------------------
 
 
 get_current_progress(StatusMap) when is_map(StatusMap)->
